@@ -1,6 +1,9 @@
 # PCSX2
 
-    This project is an attempt of pcsx2 on arm linux, but I failed, learning from aethersx2,aethersx2 is an emulator that can run on Android. My original idea was to use its core (after all, it is arm) to strip the Android gui and restore the native gtk gui. but I failed.  gs.cpp has changed a lot, resulting in gui can not be restored
+
+    This project is an attempt of pcsx2 on arm linux, but I failed, learning from aethersx2,aethersx2 is an emulator that can run on Android. 
+    My original idea was to use its core (after all, it is arm) to strip the Android gui and restore the native gtk gui. but I failed.  
+    gs.cpp has changed a lot, resulting in gui can not be restored
     if you want to continue, the following is the compilation method:
     
 	sudo apt install dh-make dh-exec build-essential cmake pkg-config git  silversearcher-ag extra-cmake-modules libsdl2-dev ninja-build libpcap-dev liblz4-dev libcurl4-openssl-dev libwxgtk3.2-dev libaio-dev libsoundtouch-dev libfmt-dev libyaml-cpp-dev
