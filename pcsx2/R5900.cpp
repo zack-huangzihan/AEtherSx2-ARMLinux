@@ -94,7 +94,8 @@ void cpuReset()
 	fpuRegs.fprc[0]			= 0x00002e30; // fpu Revision..
 	fpuRegs.fprc[31]		= 0x01000001; // fpu Status/Control
 
-	cpuRegs.nextEventCycle = cpuRegs.cycle + 4;
+	g_nextEventCycle = cpuRegs.cycle + 4;
+	//cpuRegs.nextEventCycle = cpuRegs.cycle + 4;
 	EEsCycle = 0;
 	EEoCycle = cpuRegs.cycle;
 
@@ -236,9 +237,9 @@ __fi void cpuSetNextEvent( u32 startCycle, s32 delta )
 	// typecast the conditional to signed so that things don't blow up
 	// if startCycle is greater than our next branch cycle.
 
-	if( (int)(cpuRegs.nextEventCycle - startCycle) > delta )
+	if( (int)(g_nextEventCycle - startCycle) > delta )
 	{
-		cpuRegs.nextEventCycle = startCycle + delta;
+		g_nextEventCycle = startCycle + delta;
 	}
 }
 
@@ -261,7 +262,7 @@ __fi int cpuTestCycle( u32 startCycle, s32 delta )
 // tells the EE to run the branch test the next time it gets a chance.
 __fi void cpuSetEvent()
 {
-	cpuRegs.nextEventCycle = cpuRegs.cycle;
+	g_nextEventCycle = cpuRegs.cycle;
 }
 
 __fi void cpuClearInt( uint i )
@@ -269,6 +270,9 @@ __fi void cpuClearInt( uint i )
 	pxAssume( i < 32 );
 	cpuRegs.interrupt &= ~(1 << i);
 }
+
+// if cpuRegs.cycle is greater than this cycle, should check cpuEventTest for updates
+u32 g_nextEventCycle = 0;
 
 static __fi void TESTINT( u8 n, void (*callback)() )
 {
@@ -370,7 +374,7 @@ static bool cpuIntsEnabled(int Interrupt)
 __fi void _cpuEventTest_Shared()
 {
 	eeEventTestIsActive = true;
-	cpuRegs.nextEventCycle = cpuRegs.cycle + eeWaitCycles;
+	g_nextEventCycle = cpuRegs.cycle + eeWaitCycles;
 
 	// ---- INTC / DMAC (CPU-level Exceptions) -----------------
 	// Done first because exceptions raised during event tests need to be postponed a few

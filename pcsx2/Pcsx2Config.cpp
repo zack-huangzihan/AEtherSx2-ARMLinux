@@ -66,13 +66,13 @@ void TraceLogFilters::LoadSave(SettingsWrapper& wrap)
 }
 
 const wxChar* const tbl_SpeedhackNames[] =
-	{
-		L"mvuFlag",
-		L"InstantVU1"};
+    {
+        L"mvuFlag",
+        L"InstantVU1"};
 
-const __fi wxChar* EnumToString(SpeedhackId id)
+const __fi wxChar* EnumToString(SpeedhackId id)                                                                                
 {
-	return tbl_SpeedhackNames[id];
+    return tbl_SpeedhackNames[id];
 }
 
 void Pcsx2Config::SpeedhackOptions::Set(SpeedhackId id, bool enabled)
@@ -404,6 +404,27 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	if (wrap.IsLoading())
 		GSLoadConfigFromApp(this);
 #endif
+}
+
+int Pcsx2Config::GSOptions::GetVsync() const
+{
+    if (EmuConfig.LimiterMode == LimiterModeType::Turbo || !FrameLimitEnable)
+        return 0;
+
+    // D3D only support a boolean state. OpenGL waits a number of vsync
+    // interrupt (negative value for late vsync).
+    switch (VsyncEnable)
+    {
+        case VsyncMode::Adaptive:
+            return -1;
+        case VsyncMode::Off:
+            return 0;
+        case VsyncMode::On:
+            return 1;
+
+        default:
+            return 0;
+    }
 }
 
 bool Pcsx2Config::GSOptions::UseHardwareRenderer() const

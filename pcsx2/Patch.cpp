@@ -203,32 +203,55 @@ static int _LoadPatchFiles(const wxDirName& folderName, wxString& fileSpec, cons
 // Returns number of patches loaded
 // Note: does not reset previously loaded patches (use ForgetLoadedPatches() for that)
 // Note: only load patches from the root folder of the zip
-int LoadPatchesFromZip(const wxString& gameCRC, const wxString& patchesArchiveFilename, wxInputStream* stream)
-{
-	wxString upperGameCRC(gameCRC.Upper());
+// int LoadPatchesFromZip(const wxString& gameCRC, const wxString& patchesArchiveFilename, wxInputStream* stream)
+// {
+// 	wxString upperGameCRC(gameCRC.Upper());
 
-	int before = Patch.size();
+// 	int before = Patch.size();
 
-	std::unique_ptr<wxZipEntry> entry;
-	wxZipInputStream zip(stream);
-	while (entry.reset(zip.GetNextEntry()), entry.get() != NULL)
-	{
-		wxString name = entry->GetName();
-		name.MakeUpper();
-		if (name.Find(upperGameCRC) == 0 && name.Find(L".PNACH") + 6u == name.Length())
-		{
-			PatchesCon->WriteLn(Color_Green, L"Loading patch '%s' from archive '%s'",
-								WX_STR(entry->GetName()), WX_STR(patchesArchiveFilename));
-			wxTextInputStream pnach(zip);
-			while (!zip.Eof())
-			{
-				inifile_processString(pnach.ReadLine());
-			}
-		}
-	}
-	return Patch.size() - before;
+// 	std::unique_ptr<wxZipEntry> entry;
+// 	wxZipInputStream zip(stream);
+// 	while (entry.reset(zip.GetNextEntry()), entry.get() != NULL)
+// 	{
+// 		wxString name = entry->GetName();
+// 		name.MakeUpper();
+// 		if (name.Find(upperGameCRC) == 0 && name.Find(L".PNACH") + 6u == name.Length())
+// 		{
+// 			PatchesCon->WriteLn(Color_Green, L"Loading patch '%s' from archive '%s'",
+// 								WX_STR(entry->GetName()), WX_STR(patchesArchiveFilename));
+// 			wxTextInputStream pnach(zip);
+// 			while (!zip.Eof())
+// 			{
+// 				inifile_processString(pnach.ReadLine());
+// 			}
+// 		}
+// 	}
+// 	return Patch.size() - before;
+// }
+
+int LoadPatchesFromZip(wxString gameCRC, const wxString& patchesArchiveFilename) {
+    gameCRC.MakeUpper();
+
+    int before = Patch.size();
+
+    std::unique_ptr<wxZipEntry> entry;
+    wxFFileInputStream in(patchesArchiveFilename);
+    wxZipInputStream zip(in);
+    while (entry.reset(zip.GetNextEntry()), entry.get() != NULL)
+    {
+        wxString name = entry->GetName();
+        name.MakeUpper();
+        if (name.Find(gameCRC) == 0 && name.Find(L".PNACH")+6u == name.Length()) {
+            PatchesCon->WriteLn(Color_Green, L"Loading patch '%s' from archive '%s'",
+                WX_STR(entry->GetName()), WX_STR(patchesArchiveFilename));
+            wxTextInputStream pnach(zip);
+            while (!zip.Eof()) {
+                inifile_processString(pnach.ReadLine());
+            }
+        }
+    }
+    return Patch.size() - before;
 }
-
 
 // This routine loads patches from *.pnach files
 // Returns number of patches loaded

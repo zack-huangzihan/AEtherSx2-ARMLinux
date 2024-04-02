@@ -1741,6 +1741,9 @@ const GSVector2i default_rt_size(1280, 1024);
 int GSinit();
 void GSshutdown();
 bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* basemem);
+
+//int GSopen2(const WindowInfo & wi, u32 flags);
+
 void GSreset();
 void GSclose();
 void GSgifSoftReset(uint32 mask);

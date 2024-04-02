@@ -29,7 +29,6 @@
 #include "gui/AppConfig.h"
 #include "gui/GSFrame.h"
 #include "Counters.h"
-#include "PerformanceMetrics.h"
 
 #include <wx/mstream.h>
 #include <wx/listctrl.h>
@@ -657,7 +656,7 @@ void Dialogs::GSDumpDialog::ProcessDumpEvent(const GSData& event, char* regs)
 			g_FrameCount++;
 			Pcsx2App* app = (Pcsx2App*)wxApp::GetInstance();
 			if (app)
-				PerformanceMetrics::Update();
+				app->FpsManager.DoFrame();
 			break;
 		}
 		case ReadFIFO2:
@@ -770,12 +769,13 @@ void Dialogs::GSDumpDialog::GSThread::ExecuteTaskInThread()
 	GSFrame* window = nullptr;
 	if (app)
 	{
-		PerformanceMetrics::Reset();
+		app->FpsManager.Reset();
 		window = app->GetGsFramePtr();
 		g_FrameCount = 0;
 	}
 
 	GSsetBaseMem((u8*)regs);
+	// if (GSopen2(g_gs_window_info, (renderer_override<<24)) != 0)
 	if (GSopen2(g_gs_window_info, (renderer_override<<24)) != 0)
 	{
 		OnStop();

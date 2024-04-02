@@ -16,13 +16,11 @@
 #include "PrecompiledHeader.h"
 #include "App.h"
 #include "AppSaveStates.h"
-#include "GameDatabase.h"
+#include "AppGameDatabase.h"
 
 #include <wx/stdpaths.h>
-#include <wx/wfstream.h>
 #include "fmt/core.h"
 
-#include "common/FileSystem.h"
 #include "common/StringUtil.h"
 #include "common/Threading.h"
 
@@ -63,6 +61,13 @@ namespace GameInfo
 	wxString gameVersion;
 }; // namespace GameInfo
 
+// namespace GameInfo
+// {
+// 	std::string gameName;
+// 	std::string gameSerial;
+// 	std::string gameCRC;
+// 	std::string gameVersion;
+// }; // namespace GameInfo
 // --------------------------------------------------------------------------------------
 //  SysExecEvent_InvokeCoreThreadMethod
 // --------------------------------------------------------------------------------------
@@ -266,6 +271,9 @@ void AppCoreThread::OnPauseDebug()
 // Returns number of gamefixes set
 static int loadGameSettings(Pcsx2Config& dest, const GameDatabaseSchema::GameEntry& game)
 {
+	if (!game.isValid)
+		return 0;
+
 	int gf = 0;
 
 	if (game.eeRoundMode != GameDatabaseSchema::RoundMode::Undefined)
@@ -273,7 +281,7 @@ static int loadGameSettings(Pcsx2Config& dest, const GameDatabaseSchema::GameEnt
 		SSE_RoundMode eeRM = (SSE_RoundMode)enum_cast(game.eeRoundMode);
 		if (EnumIsValid(eeRM))
 		{
-			PatchesCon->WriteLn("(GameDB) Changing EE/FPU roundmode to %d [%s]", eeRM, EnumToString(eeRM));
+			PatchesCon->WriteLn(L"(GameDB) Changing EE/FPU roundmode to %d [%s]", eeRM, EnumToString(eeRM));
 			dest.Cpu.sseMXCSR.SetRoundMode(eeRM);
 			gf++;
 		}
@@ -284,7 +292,7 @@ static int loadGameSettings(Pcsx2Config& dest, const GameDatabaseSchema::GameEnt
 		SSE_RoundMode vuRM = (SSE_RoundMode)enum_cast(game.vuRoundMode);
 		if (EnumIsValid(vuRM))
 		{
-			PatchesCon->WriteLn("(GameDB) Changing VU0/VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
+			PatchesCon->WriteLn(L"(GameDB) Changing VU0/VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
 			dest.Cpu.sseVUMXCSR.SetRoundMode(vuRM);
 			gf++;
 		}
@@ -293,7 +301,7 @@ static int loadGameSettings(Pcsx2Config& dest, const GameDatabaseSchema::GameEnt
 	if (game.eeClampMode != GameDatabaseSchema::ClampMode::Undefined)
 	{
 		int clampMode = enum_cast(game.eeClampMode);
-		PatchesCon->WriteLn("(GameDB) Changing EE/FPU clamp mode [mode=%d]", clampMode);
+		PatchesCon->WriteLn(L"(GameDB) Changing EE/FPU clamp mode [mode=%d]", clampMode);
 		dest.Cpu.Recompiler.fpuOverflow = (clampMode >= 1);
 		dest.Cpu.Recompiler.fpuExtraOverflow = (clampMode >= 2);
 		dest.Cpu.Recompiler.fpuFullMode = (clampMode >= 3);
@@ -310,28 +318,40 @@ static int loadGameSettings(Pcsx2Config& dest, const GameDatabaseSchema::GameEnt
 		gf++;
 	}
 
-	for (const auto& [id, mode] : game.speedHacks)
+	// TODO - config - this could be simplified with maps instead of bitfields and enums
+	for (SpeedhackId id = SpeedhackId_FIRST; id < pxEnumEnd; id++)
 	{
+		std::string key = fmt::format("{}SpeedHack", wxString(EnumToString(id)).ToUTF8());
+
 		// Gamefixes are already guaranteed to be valid, any invalid ones are dropped
-		// Legacy note - speedhacks are setup in the GameDB as integer values, but
-		// are effectively booleans like the gamefixes
-		dest.Speedhacks.Set(id, mode != 0);
-		PatchesCon->WriteLn("(GameDB) Setting Speedhack '%s' to [mode=%d]", EnumToString(id), static_cast<int>(mode != 0));
-		gf++;
+		if (game.speedHacks.count(key) == 1)
+		{
+			// Legacy note - speedhacks are setup in the GameDB as integer values, but
+			// are effectively booleans like the gamefixes
+			bool mode = game.speedHacks.at(key) ? 1 : 0;
+			dest.Speedhacks.Set(id, mode);
+			PatchesCon->WriteLn(fmt::format("(GameDB) Setting Speedhack '{}' to [mode={}]", key, (int)mode));
+			gf++;
+		}
 	}
 
 	// TODO - config - this could be simplified with maps instead of bitfields and enums
-	for (const GamefixId id : game.gameFixes)
+	for (GamefixId id = GamefixId_FIRST; id < pxEnumEnd; id++)
 	{
-		// Gamefixes are already guaranteed to be valid, any invalid ones are dropped
-		// if the fix is present, it is said to be enabled
-		dest.Gamefixes.Set(id, true);
-		PatchesCon->WriteLn("(GameDB) Enabled Gamefix: %s", EnumToString(id));
-		gf++;
+		std::string key = fmt::format("{}Hack", wxString(EnumToString(id)).ToUTF8());
 
-		// The LUT is only used for 1 game so we allocate it only when the gamefix is enabled (save 4MB)
-		if (id == Fix_GoemonTlbMiss && true)
-			vtlb_Alloc_Ppmap();
+		// Gamefixes are already guaranteed to be valid, any invalid ones are dropped
+		if (std::find(game.gameFixes.begin(), game.gameFixes.end(), key) != game.gameFixes.end())
+		{
+			// if the fix is present, it is said to be enabled
+			dest.Gamefixes.Set(id, true);
+			PatchesCon->WriteLn("(GameDB) Enabled Gamefix: " + key);
+			gf++;
+
+			// The LUT is only used for 1 game so we allocate it only when the gamefix is enabled (save 4MB)
+			if (id == Fix_GoemonTlbMiss && true)
+				vtlb_Alloc_Ppmap();
+		}
 	}
 
 	return gf;
@@ -437,28 +457,33 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 
 	if (!curGameKey.IsEmpty())
 	{
-		const GameDatabaseSchema::GameEntry* game = GameDatabase::FindGame(StringUtil::wxStringToUTF8String(curGameKey));
-		if (game)
+		if (IGameDatabase* GameDB = AppHost_GetGameDatabase())
 		{
-			GameInfo::gameName = StringUtil::UTF8StringToWxString(StringUtil::StdStringFromFormat("%s (%s)", game->name.c_str(), game->region.c_str()));
-			gameCompat.Printf(" [Status = %s]", GameDatabaseSchema::compatToString(game->compat));
-			gameMemCardFilter = StringUtil::UTF8StringToWxString(game->MemcardFiltersAsString());
+			GameDatabaseSchema::GameEntry game = GameDB->findGame(std::string(curGameKey.ToUTF8()));
+			if (game.isValid)
+			{
+				GameInfo::gameName = fromUTF8(game.name.c_str());
+				GameInfo::gameName += L" (" + fromUTF8(game.region.c_str()) + L")";
+				gameCompat = L" [Status = " + compatToStringWX(game.compat) + L"]";
+				gameMemCardFilter = fromUTF8(game.MemcardFiltersAsString().c_str());
+			}
+			else
+			{
+				// Set correct title for loading standalone/homebrew ELFs
+				GameInfo::gameName = LastELF.AfterLast('\\');
+			}
 
 			if (fixup.EnablePatches)
 			{
-				if (int patches = LoadPatchesFromGamesDB(GameInfo::gameCRC.ToStdString(), *game))
+				//if (int patches = LoadPatchesFromGamesDB(GameInfo::gameCRC, game))
+				if (int patches = LoadPatchesFromGamesDB(GameInfo::gameCRC.ToStdString(), game))
 				{
 					gamePatch.Printf(L" [%d Patches]", patches);
 					PatchesCon->WriteLn(Color_Green, "(GameDB) Patches Loaded: %d", patches);
 				}
-				if (int fixes = loadGameSettings(fixup, *game))
+				if (int fixes = loadGameSettings(fixup, game))
 					gameFixes.Printf(L" [%d Fixes]", fixes);
 			}
-		}
-		else
-		{
-			// Set correct title for loading standalone/homebrew ELFs
-			GameInfo::gameName = LastELF.AfterLast('\\');
 		}
 	}
 
@@ -498,14 +523,11 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 		else
 		{
 			// No ws cheat files found at the cheats_ws folder, try the ws cheats zip file.
-			const wxString cheats_ws_archive(Path::Combine(EmuFolders::Resources, wxFileName(L"cheats_ws.zip")));
-			if (wxFile::Exists(cheats_ws_archive))
-			{
-				wxFFileInputStream* strm = new wxFFileInputStream(cheats_ws_archive);
-				int numberDbfCheatsLoaded = LoadPatchesFromZip(GameInfo::gameCRC, cheats_ws_archive, strm);
-				PatchesCon->WriteLn(Color_Green, "(Wide Screen Cheats DB) Patches Loaded: %d", numberDbfCheatsLoaded);
-				gameWsHacks.Printf(L" [%d widescreen hacks]", numberDbfCheatsLoaded);
-			}
+			wxString cheats_ws_archive = Path::Combine(PathDefs::GetProgramDataDir(), wxFileName(L"cheats_ws.zip"));
+			int numberDbfCheatsLoaded = LoadPatchesFromZip(GameInfo::gameCRC, cheats_ws_archive);
+			//int numberDbfCheatsLoaded = LoadPatchesFromZip(GameInfo::gameCRC, cheats_ws_archive);
+			PatchesCon->WriteLn(Color_Green, "(Wide Screen Cheats DB) Patches Loaded: %d", numberDbfCheatsLoaded);
+			gameWsHacks.Printf(L" [%d widescreen hacks]", numberDbfCheatsLoaded);
 		}
 	}
 
@@ -570,7 +592,8 @@ void AppCoreThread::ApplySettings(const Pcsx2Config& src)
 	}
 
 	if (m_ExecMode >= ExecMode_Paused)
-		GSsetVsync(EmuConfig.GS.GetVsync());
+		//GSsetVsync(EmuConfig.GS.GetVsync());
+		GSvsync(EmuConfig.GS.GetVsync());
 }
 
 // --------------------------------------------------------------------------------------

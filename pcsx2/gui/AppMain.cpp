@@ -20,8 +20,11 @@
 #include "GS.h"
 #include "Host.h"
 #include "AppSaveStates.h"
+#include "AppGameDatabase.h"
 #include "AppAccelerators.h"
-#include "PAD/Gamepad.h"
+
+//#include "PAD/Gamepad.h"
+#include "PAD/Linux/PAD.h"
 
 #include "ps2/BiosTools.h"
 
@@ -354,6 +357,44 @@ wxAppTraits* Pcsx2App::CreateTraits()
 	return new Pcsx2AppTraits;
 }
 
+// --------------------------------------------------------------------------------------
+//  FramerateManager  (implementations)
+// --------------------------------------------------------------------------------------
+void FramerateManager::Reset()
+{
+	//memzero( m_fpsqueue );
+	m_initpause = FramerateQueueDepth;
+	m_fpsqueue_writepos = 0;
+
+	for( uint i=0; i<FramerateQueueDepth; ++i )
+		m_fpsqueue[i] = GetCPUTicks();
+
+	Resume();
+}
+
+// 
+void FramerateManager::Resume()
+{
+}
+
+void FramerateManager::DoFrame()
+{
+	m_fpsqueue_writepos = (m_fpsqueue_writepos + 1) % FramerateQueueDepth;
+	m_fpsqueue[m_fpsqueue_writepos] = GetCPUTicks();
+
+	// intentionally leave 1 on the counter here, since ultimately we want to divide the 
+	// final result (in GetFramerate() by QueueDepth-1.
+	if( m_initpause > 1 ) --m_initpause;
+}
+
+double FramerateManager::GetFramerate() const
+{
+	if( m_initpause > (FramerateQueueDepth/2) ) return 0.0;
+	const u64 delta = m_fpsqueue[m_fpsqueue_writepos] - m_fpsqueue[(m_fpsqueue_writepos + 1) % FramerateQueueDepth];
+	const u32 ticks_per_frame = (u32)(delta / (FramerateQueueDepth-m_initpause));
+	return (double)GetTickFrequency() / (double)ticks_per_frame;
+}
+
 // ----------------------------------------------------------------------------
 //         Pcsx2App Event Handlers
 // ----------------------------------------------------------------------------
@@ -373,6 +414,8 @@ void Pcsx2App::LogicalVsync()
 	if( !SysHasValidState() ) return;
 
 	// Update / Calculate framerate!
+
+	FpsManager.DoFrame();
 
 	if (EmuConfig.GS.FMVAspectRatioSwitch != FMVAspectRatioSwitchType::Off) {
 		if (EnableFMV) {
@@ -763,7 +806,7 @@ void Pcsx2App::OpenGsPanel()
 		gsFrame->SetSize( oldsize );
 	}
 
-    pxAssertDev( !gsopen_done, "GS must be closed prior to opening a new Gs Panel!" );
+    //pxAssertDev( !gsopen_done, "GS must be closed prior to opening a new Gs Panel!" );
 
 	gsFrame->ShowFullScreen(g_Conf->GSWindow.IsFullscreen);
 	wxApp::ProcessPendingEvents();

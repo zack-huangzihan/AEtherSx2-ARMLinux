@@ -460,6 +460,8 @@ struct Pcsx2Config
 
 		void LoadSave(SettingsWrapper& wrap);
 
+		int GetVsync() const;
+
 		bool UseHardwareRenderer() const;
 		float GetAspectRatioFloat() const;
 

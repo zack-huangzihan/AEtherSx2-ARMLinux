@@ -59,6 +59,17 @@ Pcsx2Config::GSOptions GSConfig;
 
 static std::unique_ptr<GSRenderer> s_gs;
 static HostDisplay::RenderAPI s_render_api;
+static u8* s_basemem = NULL;
+
+EXPORT_C GSsetBaseMem(uint8* mem)
+{
+    s_basemem = mem;                                                                                                    
+
+    if(s_gs)
+    {
+        s_gs->SetRegsMem(s_basemem);
+    }
+}
 
 int GSinit()
 {
@@ -314,6 +325,189 @@ bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* b
 
 	return DoGSOpen(renderer, basemem);
 }
+
+// int GSopen2(const WindowInfo& wi, u32 flags)
+// {
+//     static bool stored_toggle_state = false;
+//     const bool toggle_state = !!(flags & 4);
+//     GSRendererType current_renderer = static_cast<GSRendererType>(flags >> 24);
+//     if (current_renderer == GSRendererType::Auto)
+//         current_renderer = theApp.GetCurrentRendererType();
+
+//     if (current_renderer != GSRendererType::Auto && stored_toggle_state != toggle_state)
+//     {
+//         // SW -> HW and HW -> SW (F9 Switch)
+//         switch (current_renderer)
+//         {
+// #ifdef _WIN32
+//             case GSRendererType::DX11:
+//                 current_renderer = GSRendererType::OGL;
+//                 break;
+// #endif
+//             case GSRendererType::OGL:
+// #ifdef _WIN32
+//             {
+//                 const auto config_renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
+
+//                 if (current_renderer == config_renderer)
+//                 {
+//                     if (D3D::ShouldPreferD3D())
+//                         current_renderer = GSRendererType::DX11;
+//                     else
+//                         current_renderer = GSRendererType::OGL;
+//                 }
+//                 else
+//                     current_renderer = config_renderer;
+//             }
+// #else
+//                 current_renderer = GSRendererType::OGL;
+// #endif
+//             break;
+//             case GSRendererType::OGL:
+//                 current_renderer = GSRendererType::OGL;
+//                 break;
+//             default:
+//                 current_renderer = GSRendererType::OGL;
+//                 break;
+//         }
+//     }
+//     stored_toggle_state = toggle_state;
+
+//     int retval = _GSopen(wi, "", current_renderer);
+
+//     //gsopen_done = true;
+
+//     return retval;
+// }
+
+// int _GSopen(const WindowInfo& wi, const char* title, GSRendererType renderer, int threads = -1)
+// {
+//     GSDevice* dev = NULL;
+
+//     // Fresh start up or config file changed
+//     if (renderer == GSRendererType::Undefined)
+//     {
+//         renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
+// #ifdef _WIN32
+//         if (renderer == GSRendererType::Default)
+//         {
+//             if (D3D::ShouldPreferD3D())
+//                 renderer = GSRendererType::DX11;
+//             else
+//                 renderer = GSRendererType::OGL;
+//         }
+// #endif
+//     }
+
+//     if (threads == -1)
+//     {
+//         threads = theApp.GetConfigI("extrathreads");
+//     }
+
+//     try
+//     {
+//         if (theApp.GetCurrentRendererType() != renderer)
+//         {
+//             // Emulator has made a render change request, which requires a completely
+//             // new s_gs -- if the emu doesn't save/restore the GS state across this
+//             // GSopen call then they'll get corrupted graphics, but that's not my problem.
+
+//             delete s_gs;
+
+//             s_gs = NULL;
+
+//             theApp.SetCurrentRendererType(renderer);
+//         }
+
+//         std::string renderer_name;
+//         switch (renderer)
+//         {
+//             default:
+// #ifdef _WIN32
+//             case GSRendererType::DX1011_HW:
+//                 dev = new GSDevice11();
+//                 s_renderer_name = "D3D11";
+//                 renderer_name = "Direct3D 11";
+//                 break;
+// #endif
+//             case GSRendererType::OGL_HW:
+//                 dev = new GSDeviceOGL();
+//                 s_renderer_name = "OGL";
+//                 renderer_name = "OpenGL";
+//                 break;
+//             case GSRendererType::OGL_SW:
+//                 dev = new GSDeviceOGL();
+//                 s_renderer_name = "SW";
+//                 renderer_name = "Software";
+//                 break;
+//             case GSRendererType::Null:
+//                 dev = new GSDeviceNull();
+//                 s_renderer_name = "NULL";
+//                 renderer_name = "Null";
+//                 break;
+//         }
+
+//         printf("Current Renderer: %s\n", renderer_name.c_str());
+
+//         if (dev == NULL)
+//         {
+//             return -1;
+//         }
+
+//         if (s_gs == NULL)
+//         {
+//             switch (renderer)
+//             {
+//                 default:
+// #ifdef _WIN32
+//                 case GSRendererType::DX1011_HW:
+//                     s_gs = (GSRenderer*)new GSRendererDX11();
+//                     break;
+// #endif
+//                 case GSRendererType::OGL_HW:
+//                     s_gs = (GSRenderer*)new GSRendererOGL();
+//                     break;
+//                 case GSRendererType::OGL_SW:
+//                     s_gs = new GSRendererSW(threads);
+//                     break;
+//                 case GSRendererType::Null:
+//                     s_gs = new GSRendererNull();
+//                     break;
+//             }
+//             if (s_gs == NULL)
+//                 return -1;
+//         }
+//     }
+//     catch (std::exception& ex)
+//     {
+//         printf("GS error: Exception caught in GSopen: %s", ex.what());
+//         return -1;
+//     }
+
+//     s_gs->SetRegsMem(s_basemem);
+//     s_gs->SetVSync(s_vsync);
+
+//     if (!s_gs->CreateDevice(dev, wi))
+//     {
+//         // This probably means the user has DX11 configured with a video card that is only DX9
+//         // compliant.  Cound mean drivr issues of some sort also, but to be sure, that's the most
+//         // common cause of device creation errors. :)  --air
+
+//         GSclose();
+
+//         return -1;
+//     }
+
+//     if (renderer == GSRendererType::OGL_HW && theApp.GetConfigI("debug_glsl_shader") == 2)
+//     {
+//         printf("GS: test OpenGL shader. Please wait...\n\n");
+//         static_cast<GSDeviceOGL*>(s_gs->m_dev)->SelfShaderTest();
+//         printf("\nGS: test OpenGL shader done. It will now exit\n");
+//         return -1;
+//     }
+
+//     return 0;
+// }
 
 void GSreset()
 {

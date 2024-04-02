@@ -47,6 +47,13 @@ namespace GameInfo
 	extern wxString gameVersion;
 }; // namespace GameInfo
 
+// namespace GameInfo
+// {
+// 	extern std::string gameName;
+// 	extern std::string gameSerial;
+// 	extern std::string gameCRC;
+// 	extern std::string gameVersion;
+// }; // namespace GameInfo
 
 // --------------------------------------------------------------------------------------
 //  BaseSysExecEvent_ScopedCore

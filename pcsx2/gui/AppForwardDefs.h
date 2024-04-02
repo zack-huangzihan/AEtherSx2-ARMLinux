@@ -33,6 +33,7 @@ class PipeRedirectionBase;
 class AppCoreThread;
 class Pcsx2AppMethodEvent;
 class pxAppResources;
+class AppGameDatabase;
 class IScopedCoreThread;
 
 struct KeyAcceleratorCode;
